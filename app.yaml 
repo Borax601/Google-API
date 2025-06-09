@@ -1,0 +1,87 @@
+name: Gemini URL Summarizer
+description: 指定したURLのページ内容を取得し、Gemini APIを使って1行要約するWebアプリ
+
+tasks:
+  - name: ディレクトリ構成作成
+    steps:
+      - run: mkdir client server
+
+  - name: Node.jsサーバー初期化とGemini API設定
+    steps:
+      - run: cd server && npm init -y
+      - run: cd server && npm install express axios dotenv cors
+      - run: |
+          echo "API_KEY=AIzaSyAYJF44vRXG5mkL4EvIFf-3naNRL0Q8Pzw" > server/.env
+      - run: |
+          echo "const express = require('express');
+          const axios = require('axios');
+          const cors = require('cors');
+          require('dotenv').config();
+
+          const app = express();
+          app.use(express.json());
+          app.use(cors());
+
+          app.post('/summarize', async (req, res) => {
+              const { content } = req.body;
+              try {
+                  const response = await axios.post(
+                      \`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=\${process.env.API_KEY}\`,
+                      {
+                          contents: [
+                            {
+                              parts: [
+                                {
+                                  text: '次の内容を1行で要約してください：' + content
+                                }
+                              ]
+                            }
+                          ]
+                      },
+                      { headers: { 'Content-Type': 'application/json' } }
+                  );
+                  res.json(response.data);
+              } catch (err) {
+                  res.status(500).json({ error: err.toString() });
+              }
+          });
+
+          app.listen(3001, () => console.log('✅ Server is running at http://localhost:3001'));
+          " > server/index.js
+
+  - name: Reactフロントエンド構築
+    steps:
+      - run: cd client && npm create vite@latest . -- --template react
+      - run: cd client && npm install
+      - run: |
+          echo "import { useState } from 'react';
+
+          function App() {
+              const [url, setUrl] = useState('');
+              const [summary, setSummary] = useState('');
+
+              const handleSubmit = async () => {
+                  const res = await fetch(url);
+                  const html = await res.text();
+                  const response = await fetch('http://localhost:3001/summarize', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ content: html.slice(0, 4000) })
+                  });
+                  const data = await response.json();
+                  const result = data?.candidates?.[0]?.content?.parts?.[0]?.text || '要約に失敗しました';
+                  setSummary(result);
+              };
+
+              return (
+                  <div style={{ padding: 20 }}>
+                      <h2>URL 1行要約アプリ</h2>
+                      <input type='text' value={url} onChange={(e) => setUrl(e.target.value)} placeholder='URLを入力' style={{ width: '80%' }} />
+                      <button onClick={handleSubmit}>要約する</button>
+                      <p>結果：{summary}</p>
+                  </div>
+              );
+          }
+
+          export default App;
+          " > client/src/App.jsx
