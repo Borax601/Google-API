@@ -22,14 +22,25 @@ app.post('/summarize', async (req, res) => {
     }
 
     try {
-        // a. Google検索実行
-        const results = await google({ query: keyword });
-        if (!results || results.length === 0) {
-            console.error('[ERROR] Google検索で結果が見つかりませんでした');
-            return res.status(404).json({ error: '検索結果が見つかりませんでした' });
-        }
-        // b. 1位のURL取得
-        const topUrl = results[0].link;
+        // ↓↓↓ この2行を追加します ↓↓↓
+        console.log('[DEBUG] API Key Loaded:', process.env.API_KEY ? 'OK' : 'MISSING!');
+        console.log('[DEBUG] Search Engine ID Loaded:', process.env.SEARCH_ENGINE_ID ? 'OK' : 'MISSING!');
+
+        // a. Google検索実行 (googleapisライブラリの正しい使い方)
+        const searchRes = await customsearch.cse.list({
+            auth: process.env.API_KEY,          // APIキー
+            cx: process.env.SEARCH_ENGINE_ID,   // 検索エンジンID
+            q: keyword,                         // 検索キーワード
+        });
+
+const results = searchRes.data.items;
+if (!results || results.length === 0) {
+    console.error('[ERROR] Google検索で結果が見つかりませんでした');
+    return res.status(404).json({ error: '検索結果が見つかりませんでした' });
+}
+
+// b. 1位のURL取得
+const topUrl = results[0].link;
         console.log('[DEBUG] 検索1位のURL:', topUrl);
 
         // c. axiosとcheerioで本文抽出
